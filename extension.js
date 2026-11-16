@@ -3,6 +3,7 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gvc from 'gi://Gvc';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -24,6 +25,11 @@ function isMonitor(stream) {
 // pa_port_available_t: 0 = unknown, 1 = no, 2 = yes.
 const PORT_AVAILABLE_NO = 1;
 
+// How long a newly appeared source keeps following an unmute. WirePlumber
+// restores a route's saved mute state shortly after the node appears, so the
+// unmute is re-applied for this window rather than only once.
+const APPEAR_WINDOW_US = 3 * GLib.USEC_PER_SEC;
+
 export default class GlobalMicMuteExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
@@ -33,6 +39,10 @@ export default class GlobalMicMuteExtension extends Extension {
 
         // Map<Gvc.MixerSource, handlerId[]>
         this._sources = new Map();
+        // Map<Gvc.MixerSource, monotonic time it appeared>, only for sources
+        // that appeared after the initial sync (never those present at login).
+        this._appearedAt = new Map();
+        this._settled = false;
 
         this._mixer = new Gvc.MixerControl({ name: this.metadata.name });
         this._mixerIds = [
@@ -79,6 +89,7 @@ export default class GlobalMicMuteExtension extends Extension {
 
         this._disconnectSources();
         this._sources = null;
+        this._appearedAt = null;
 
         for (const id of this._mixerIds)
             this._mixer.disconnect(id);
@@ -99,12 +110,24 @@ export default class GlobalMicMuteExtension extends Extension {
             this._setMuted(name === 'mute-shortcut');
     }
 
+    _unmuteAll() {
+        return this._settings.get_string('unmute-scope') === 'all';
+    }
+
     _setMuted(muted) {
         this._muted = muted;
         this._settings.set_boolean('muted', muted);
-        for (const s of this._usableSources()) {
-            if (s.is_muted !== muted)
-                s.change_is_muted(muted);
+        if (muted || this._unmuteAll()) {
+            for (const s of this._usableSources()) {
+                if (s.is_muted !== muted)
+                    s.change_is_muted(muted);
+            }
+        } else {
+            // Unmute scope 'active': only the default (selected) microphone.
+            const active = this._mixer.get_default_source();
+            if (active && this._sources.has(active) &&
+                this._hasUsablePort(active) && active.is_muted)
+                active.change_is_muted(false);
         }
         this._updateIcon();
         if (this._settings.get_boolean('show-osd'))
@@ -135,20 +158,36 @@ export default class GlobalMicMuteExtension extends Extension {
     }
 
     _syncSources() {
+        const known = new Set(this._sources.keys());
+        const now = GLib.get_monotonic_time();
+        const appearedAt = new Map();
+
         this._disconnectSources();
         for (const s of this._mixer.get_sources()) {
             if (isMonitor(s))
                 continue;
+            if (known.has(s)) {
+                if (this._appearedAt.has(s))
+                    appearedAt.set(s, this._appearedAt.get(s));
+            } else if (this._settled) {
+                appearedAt.set(s, now);
+            }
             const onChange = () => {
-                this._enforce(s);
+                this._applyIntent(s);
                 this._updateIcon();
             };
             this._sources.set(s, [
                 s.connect('notify::is-muted', onChange),
                 s.connect('notify::port', onChange),
             ]);
-            this._enforce(s);
         }
+        this._appearedAt = appearedAt;
+
+        for (const s of this._sources.keys())
+            this._applyIntent(s);
+
+        if (this._mixer.get_state() === Gvc.MixerControlState.READY)
+            this._settled = true;
         this._updateIcon();
     }
 
@@ -163,11 +202,25 @@ export default class GlobalMicMuteExtension extends Extension {
         this._sources.clear();
     }
 
-    // While mute is on, any usable source that is (or becomes) live is
-    // muted again: new devices, profile switches, or an app unmuting it.
-    _enforce(stream) {
-        if (this._muted && !stream.is_muted && this._hasUsablePort(stream))
-            stream.change_is_muted(true);
+    _justAppeared(stream) {
+        const t = this._appearedAt.get(stream);
+        return t !== undefined && GLib.get_monotonic_time() - t < APPEAR_WINDOW_US;
+    }
+
+    // While mute is on, any usable source that is (or becomes) live is muted
+    // again: new devices, profile switches, or an app unmuting it.
+    // While mute is off with unmute scope 'all', a source that just appeared
+    // (hotplug, profile switch) is unmuted to follow the others; sources are
+    // otherwise left alone, so a single mic can still be muted by hand.
+    _applyIntent(stream) {
+        if (!this._hasUsablePort(stream))
+            return;
+        if (this._muted) {
+            if (!stream.is_muted)
+                stream.change_is_muted(true);
+        } else if (stream.is_muted && this._unmuteAll() && this._justAppeared(stream)) {
+            stream.change_is_muted(false);
+        }
     }
 
     _allMuted() {

@@ -21,6 +21,21 @@
       <description>Unmutes all microphones. Empty disables it.</description>
     </key>
 
+    <key name="unmute-scope" type="s">
+      <choices>
+        <choice value="all" />
+        <choice value="active" />
+      </choices>
+      <default>'all'</default>
+      <summary>What unmute applies to</summary>
+      <description>
+        'all': unmute every microphone, and microphones that appear afterwards
+        (hotplug, profile switch) follow the unmute. 'active': unmute only the
+        default (selected) microphone and leave the rest muted. Mute always
+        applies to every microphone.
+      </description>
+    </key>
+
     <key name="remember-state" type="b">
       <default>false</default>
       <summary>Remember mute state across logins</summary>
