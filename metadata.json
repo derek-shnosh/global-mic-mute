@@ -1,0 +1,16 @@
+{
+  "uuid": "global-mic-mute@derek-shnosh.github.com",
+  "name": "Global Mic Mute",
+  "description": "Mute every microphone at once, not just the default, and keep them muted: sources that appear later (hotplugged mics, profile switches) or get unmuted by an app are muted again while mute is on. Configurable toggle, mute and unmute shortcuts, optional panel indicator and OSD, and an option to remember the mute state across logins. Inputs with no usable port (empty mic jacks) are ignored. Runs on the lock screen so microphones stay muted while you are away.",
+  "shell-version": [
+    "48"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.global-mic-mute",
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ],
+  "url": "https://github.com/derek-shnosh/global-mic-mute",
+  "version": 1,
+  "version-name": "0.1.0"
+}

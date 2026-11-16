@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.global-mic-mute"
+    path="/org/gnome/shell/extensions/global-mic-mute/">
+
+    <key name="toggle-shortcut" type="as">
+      <default>[]</default>
+      <summary>Toggle shortcut</summary>
+      <description>Toggles mute on all microphones. Empty disables it.</description>
+    </key>
+
+    <key name="mute-shortcut" type="as">
+      <default>['&lt;Super&gt;m']</default>
+      <summary>Mute shortcut</summary>
+      <description>Mutes all microphones. Empty disables it.</description>
+    </key>
+
+    <key name="unmute-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Alt&gt;m']</default>
+      <summary>Unmute shortcut</summary>
+      <description>Unmutes all microphones. Empty disables it.</description>
+    </key>
+
+    <key name="remember-state" type="b">
+      <default>false</default>
+      <summary>Remember mute state across logins</summary>
+      <description>
+        When true, the last mute state is restored and enforced at login.
+        When false, every login starts with mute off.
+      </description>
+    </key>
+
+    <key name="muted" type="b">
+      <default>false</default>
+      <summary>Current mute state</summary>
+      <description>Internal: the mute intent, used when remember-state is on.</description>
+    </key>
+
+    <key name="show-indicator" type="b">
+      <default>true</default>
+      <summary>Show panel indicator</summary>
+      <description>Show a microphone icon in the top bar; clicking it toggles mute.</description>
+    </key>
+
+    <key name="show-osd" type="b">
+      <default>true</default>
+      <summary>Show on-screen display</summary>
+      <description>Show the microphone OSD when the mute state is changed.</description>
+    </key>
+
+  </schema>
+</schemalist>
