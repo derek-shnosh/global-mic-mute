@@ -21,16 +21,8 @@ function isMonitor(stream) {
     return (stream.get_name() ?? '').endsWith('.monitor');
 }
 
-// A source whose active port is "not available" (e.g. an empty mic jack)
-// cannot capture and cannot hold a mute state, so it is ignored everywhere.
-function hasUsablePort(stream) {
-    try {
-        const port = stream.get_port();
-        return !port || port.available !== false;
-    } catch {
-        return true;
-    }
-}
+// pa_port_available_t: 0 = unknown, 1 = no, 2 = yes.
+const PORT_AVAILABLE_NO = 1;
 
 export default class GlobalMicMuteExtension extends Extension {
     enable() {
@@ -121,8 +113,25 @@ export default class GlobalMicMuteExtension extends Extension {
 
     // --- sources -----------------------------------------------------------
 
+    // A source whose active port is "not available" (e.g. an empty mic jack)
+    // cannot capture and cannot hold a mute state, so it is ignored everywhere.
+    // The stream port's own 'available' flag folds "unknown" into false, so
+    // the raw three-state value is read from the card's port list instead.
+    _hasUsablePort(stream) {
+        try {
+            const port = stream.get_port();
+            if (!port)
+                return true;
+            const card = this._mixer.lookup_card_id(stream.get_card_index());
+            const cardPort = card?.get_ports().find(cp => cp.port === port.port);
+            return cardPort?.available !== PORT_AVAILABLE_NO;
+        } catch {
+            return true;
+        }
+    }
+
     _usableSources() {
-        return [...this._sources.keys()].filter(hasUsablePort);
+        return [...this._sources.keys()].filter(s => this._hasUsablePort(s));
     }
 
     _syncSources() {
@@ -157,7 +166,7 @@ export default class GlobalMicMuteExtension extends Extension {
     // While mute is on, any usable source that is (or becomes) live is
     // muted again: new devices, profile switches, or an app unmuting it.
     _enforce(stream) {
-        if (this._muted && !stream.is_muted && hasUsablePort(stream))
+        if (this._muted && !stream.is_muted && this._hasUsablePort(stream))
             stream.change_is_muted(true);
     }
 
