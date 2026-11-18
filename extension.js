@@ -266,7 +266,7 @@ export default class GlobalMicMuteExtension extends Extension {
     }
 
     _showOsd() {
-        const icon = Gio.ThemedIcon.new(this._allMuted() ? ICON_MUTED : ICON_LIVE);
+        const icon = Gio.ThemedIcon.new(this._muted ? ICON_MUTED : ICON_LIVE);
         const mgr = Main.osdWindowManager;
         // GNOME 49 renamed show(monitorIndex, ...) to showAll(...).
         if (typeof mgr.showAll === 'function')
